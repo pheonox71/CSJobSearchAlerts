@@ -1,4 +1,5 @@
 import os
+import json
 import base64
 from email.mime.text import MIMEText
 from googleapiclient.discovery import build
@@ -30,7 +31,33 @@ def get_gmail_service():
     return build("gmail", "v1", credentials=creds)
 
 # -------------------------
-# 2️⃣ Get unread Google Alert emails
+# 2️⃣ Job log (avoid sending reposts)
+# -------------------------
+SEEN_JOBS_FILE = "seen_jobs.json"
+
+def load_seen_jobs():
+    """Load set of job URLs we've already sent."""
+    if os.path.exists(SEEN_JOBS_FILE):
+        try:
+            with open(SEEN_JOBS_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except (json.JSONDecodeError, IOError):
+            pass
+    return set()
+
+def save_seen_jobs(seen):
+    """Persist seen job URLs to file."""
+    with open(SEEN_JOBS_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(seen), f, indent=2)
+
+def url_from_link(link):
+    """Extract URL from 'text — href' format."""
+    if " — " in link:
+        return link.rsplit(" — ", 1)[-1].strip()
+    return link
+
+# -------------------------
+# 3️⃣ Get unread Google Alert emails
 # -------------------------
 def get_unread_alerts(service):
     """Return list of unread messages in the inbox (ignoring from filter)."""
@@ -46,7 +73,7 @@ def get_unread_alerts(service):
 
 
 # -------------------------
-# 3️⃣ Extract links from single email
+# 4️⃣ Extract links from single email
 # -------------------------
 def extract_links(service, msg_id):
     msg = service.users().messages().get(
@@ -73,7 +100,7 @@ def extract_links(service, msg_id):
     return []
 
 # -------------------------
-# 4️⃣ Collect all links & mark emails as read
+# 5️⃣ Collect all links & mark emails as read
 # -------------------------
 def collect_all_links(service):
     messages = get_unread_alerts(service)
@@ -107,7 +134,7 @@ def collect_all_links(service):
 
 
 # -------------------------
-# 5️⃣ Summarize with OpenAI
+# 6️⃣ Summarize with OpenAI
 # -------------------------
 client = OpenAI()  # Make sure OPENAI_API_KEY is set in environment variables
 
@@ -123,13 +150,19 @@ Ignore:
 - Non-technical jobs
 - Career advice articles
 - Recruiter spam
-- Duplicates
 
-Output one bullet per job:
+GROUPING: When the same job (same role, same company) appears on multiple sites (Indeed, LinkedIn, Glassdoor, etc.), group them into ONE bullet with all applicable links.
+
+Output one bullet per unique job:
 - Job title
 - Company
 - Location
-- Link
+- All links for that job (if posted on multiple sites, list each link on its own line under that job)
+
+Example format for a job on multiple sites:
+• Software Engineer — Acme Corp — Salt Lake City, UT (Remote)
+  - https://indeed.com/...
+  - https://linkedin.com/...
 
 Input:
 {job_text}
@@ -141,7 +174,7 @@ Input:
     return response.output_text
 
 # -------------------------
-# 6️⃣ Send summary email
+# 7️⃣ Send summary email
 # -------------------------
 def send_summary_email(service, summary):
     message = MIMEText(summary)
@@ -155,20 +188,30 @@ def send_summary_email(service, summary):
     ).execute()
 
 # -------------------------
-# 7️⃣ Main
+# 8️⃣ Main
 # -------------------------
 if __name__ == "__main__":
     service = get_gmail_service()
 
     links = collect_all_links(service)
-
     if not links:
         print("No new alerts today.")
         exit()
 
-    combined_text = "\n".join(links)
+    seen = load_seen_jobs()
+    new_links = [lnk for lnk in links if url_from_link(lnk) not in seen]
+
+    if not new_links:
+        print("No new jobs (all already sent). Skipping email.")
+        exit()
+
+    combined_text = "\n".join(new_links)
     summary = summarize_jobs(combined_text)
 
     send_summary_email(service, summary)
+
+    for lnk in new_links:
+        seen.add(url_from_link(lnk))
+    save_seen_jobs(seen)
 
     print("Daily job digest sent!")
