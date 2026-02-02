@@ -134,38 +134,64 @@ def collect_all_links(service):
 
 
 # -------------------------
-# 6️⃣ Summarize with OpenAI
+# 6️⃣ Master resume & tailored resumes
+# -------------------------
+MASTER_RESUME_FILE = "master_resume.txt"
+
+def load_master_resume():
+    """Load the master resume. Raises FileNotFoundError if missing."""
+    if not os.path.exists(MASTER_RESUME_FILE):
+        raise FileNotFoundError(
+            f"Master resume not found. Create '{MASTER_RESUME_FILE}' in the project folder "
+            "with your full resume (skills, experience, education, etc.)."
+        )
+    with open(MASTER_RESUME_FILE, "r", encoding="utf-8") as f:
+        return f.read()
+
+# -------------------------
+# 7️⃣ Summarize jobs & generate tailored resumes
 # -------------------------
 client = OpenAI()  # Make sure OPENAI_API_KEY is set in environment variables
 
-def summarize_jobs(job_text):
+def generate_digest_with_tailored_resumes(master_resume, job_text):
+    """Filter jobs, group duplicates, and generate a tailored resume for each job."""
     prompt = f"""
-You are filtering job postings from Google Alerts.
+You are helping a job seeker. You have their MASTER RESUME and a list of JOB POSTINGS from Google Alerts.
 
-Keep ONLY:
-- Computer science / software jobs
-- Located in Utah OR remote roles available in Utah
+MASTER RESUME:
+---
+{master_resume}
+---
 
-Ignore:
-- Non-technical jobs
-- Career advice articles
-- Recruiter spam
-
-GROUPING: When the same job (same role, same company) appears on multiple sites (Indeed, LinkedIn, Glassdoor, etc.), group them into ONE bullet with all applicable links.
-
-Output one bullet per unique job:
-- Job title
-- Company
-- Location
-- All links for that job (if posted on multiple sites, list each link on its own line under that job)
-
-Example format for a job on multiple sites:
-• Software Engineer — Acme Corp — Salt Lake City, UT (Remote)
-  - https://indeed.com/...
-  - https://linkedin.com/...
-
-Input:
+JOB POSTINGS (text — url format):
 {job_text}
+
+TASK:
+1. Filter: Keep ONLY computer science/software jobs in Utah OR remote roles available in Utah. Ignore non-technical jobs, career advice, recruiter spam.
+2. Group: When the same job (same role, same company) appears on multiple sites, treat as ONE job and list all links.
+3. For EACH qualifying job: Output the job details (title, company, location, links) followed by a TAILORED VERSION of the master resume for that specific job.
+
+For each tailored resume:
+- Modify the professional summary to emphasize fit for that role
+- Reorder and emphasize relevant bullet points and skills
+- Adjust keyword emphasis to match the posting
+- Keep all factual content—do not invent experience
+- Maintain standard resume structure (contact, summary, experience, skills, education)
+
+OUTPUT FORMAT (repeat for each job):
+
+========================================
+JOB: [Title] at [Company] — [Location]
+Links:
+- [url 1]
+- [url 2] (if same job on multiple sites)
+========================================
+
+TAILORED RESUME:
+[Full tailored resume for this job—use same sections as master resume]
+
+========================================
+
 """
     response = client.responses.create(
         model="gpt-4.1-mini",
@@ -174,7 +200,7 @@ Input:
     return response.output_text
 
 # -------------------------
-# 7️⃣ Send summary email
+# 8️⃣ Send summary email
 # -------------------------
 def send_summary_email(service, summary):
     message = MIMEText(summary)
@@ -188,10 +214,16 @@ def send_summary_email(service, summary):
     ).execute()
 
 # -------------------------
-# 8️⃣ Main
+# 9️⃣ Main
 # -------------------------
 if __name__ == "__main__":
     service = get_gmail_service()
+
+    try:
+        master_resume = load_master_resume()
+    except FileNotFoundError as e:
+        print(e)
+        exit(1)
 
     links = collect_all_links(service)
     if not links:
@@ -206,12 +238,12 @@ if __name__ == "__main__":
         exit()
 
     combined_text = "\n".join(new_links)
-    summary = summarize_jobs(combined_text)
+    digest = generate_digest_with_tailored_resumes(master_resume, combined_text)
 
-    send_summary_email(service, summary)
+    send_summary_email(service, digest)
 
     for lnk in new_links:
         seen.add(url_from_link(lnk))
     save_seen_jobs(seen)
 
-    print("Daily job digest sent!")
+    print("Daily job digest with tailored resumes sent!")
