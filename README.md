@@ -48,7 +48,7 @@ pip install google-api-python-client google-auth-oauthlib google-auth beautifuls
 ### 4. Configure
 
 - **`master_resume.txt`** — Add your full resume (contact, summary, experience, skills, education, projects). The program uses this to generate tailored versions per job.
-- **`main.py`** — Update the recipient email in `send_summary_email()` (line ~207) to the address where you want the digest sent.
+- **`config.json`** — Copy `config.example.json` to `config.json` and set `recipient_email` to the address where you want the digest sent.
 - **Environment** — Set your OpenAI API key:
   ```bash
   set OPENAI_API_KEY=your-key-here
@@ -71,10 +71,19 @@ On first run, a browser window opens for Gmail OAuth. After that, tokens are sto
 | File | Purpose |
 |------|---------|
 | `main.py` | Main script: Gmail, filtering, resume tailoring, email |
-| `master_resume.txt` | Your full resume; used to generate tailored versions |
-| `credentials.json` | Gmail API OAuth client secrets (from Google Cloud) |
-| `token.json` | Gmail OAuth tokens (created on first run) |
-| `seen_jobs.json` | URLs of jobs already sent (avoids repeats) |
+| `config.example.json` | Template for config; copy to `config.json` and add your recipient email |
+
+## Files Hidden from Public View (Git-Ignored)
+
+The following files are listed in `.gitignore` and are **not** committed to the repository. They contain private data and should stay on your machine only:
+
+| File | Purpose | Setup |
+|------|---------|-------|
+| `master_resume.txt` | Your full resume; used to generate tailored versions per job | Create and add your resume content |
+| `credentials.json` | Gmail API OAuth client secrets (from Google Cloud) | Download from Cloud Console and save here |
+| `token.json` | Gmail OAuth tokens (created automatically on first run) | Created when you complete Gmail OAuth |
+| `config.json` | Recipient email for the job digest | Copy `config.example.json` to `config.json` and add your email |
+| `seen_jobs.json` | URLs of jobs already sent (avoids repeats) | Created automatically when jobs are sent |
 
 ## Customization
 

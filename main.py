@@ -202,9 +202,26 @@ TAILORED RESUME:
 # -------------------------
 # 8️⃣ Send summary email
 # -------------------------
+CONFIG_FILE = "config.json"
+
+def load_config():
+    """Load config (recipient email). Raises FileNotFoundError if missing."""
+    if not os.path.exists(CONFIG_FILE):
+        raise FileNotFoundError(
+            f"Config not found. Copy '{CONFIG_FILE.replace('.json', '.example.json')}' to '{CONFIG_FILE}' "
+            "and add your recipient email."
+        )
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 def send_summary_email(service, summary):
+    config = load_config()
+    recipient = config.get("recipient_email")
+    if not recipient:
+        raise ValueError(f"'{CONFIG_FILE}' must contain 'recipient_email'")
+
     message = MIMEText(summary)
-    message["to"] = "chancehardman71@gmail.com"  # <-- replace with your email
+    message["to"] = recipient
     message["subject"] = "Daily Utah CS Job Digest"
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()

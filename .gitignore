@@ -1,3 +1,5 @@
 master_resume.txt
 credentials.json
 token.json
+config.json
+seen_jobs.json
