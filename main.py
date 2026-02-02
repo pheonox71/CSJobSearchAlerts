@@ -1,0 +1,174 @@
+import os
+import base64
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from bs4 import BeautifulSoup
+from openai import OpenAI
+
+# -------------------------
+# 1️⃣ Gmail Authentication
+# -------------------------
+SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+
+def get_gmail_service():
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "credentials.json", SCOPES
+            )
+            creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+    return build("gmail", "v1", credentials=creds)
+
+# -------------------------
+# 2️⃣ Get unread Google Alert emails
+# -------------------------
+def get_unread_alerts(service):
+    """Return list of unread messages in the inbox (ignoring from filter)."""
+    results = service.users().messages().list(
+        userId="me",
+        q="is:unread"
+    ).execute()
+
+    messages = results.get("messages", [])
+    print(f"Found {len(messages)} unread messages")
+    return messages
+
+
+
+# -------------------------
+# 3️⃣ Extract links from single email
+# -------------------------
+def extract_links(service, msg_id):
+    msg = service.users().messages().get(
+        userId="me", id=msg_id, format="full"
+    ).execute()
+
+    payload = msg["payload"]
+    parts = payload.get("parts", [])
+
+    for part in parts:
+        if part["mimeType"] == "text/html":
+            data = part["body"]["data"]
+            html = base64.urlsafe_b64decode(data).decode()
+            soup = BeautifulSoup(html, "html.parser")
+
+            links = []
+            for a in soup.find_all("a"):
+                href = a.get("href")
+                text = a.get_text(strip=True)
+                if href and "http" in href:
+                    links.append(f"{text} — {href}")
+
+            return links
+    return []
+
+# -------------------------
+# 4️⃣ Collect all links & mark emails as read
+# -------------------------
+def collect_all_links(service):
+    messages = get_unread_alerts(service)
+    all_links = []
+
+    for m in messages:
+        msg = service.users().messages().get(
+            userId="me", id=m["id"], format="full"
+        ).execute()
+
+        # Get the 'From' header
+        headers = msg["payload"].get("headers", [])
+        from_header = next((h["value"] for h in headers if h["name"] == "From"), "")
+        if "googlealerts-noreply@google.com" not in from_header:
+            continue  # skip emails that aren’t from your project address
+
+        # Extract links from email
+        links = extract_links(service, m["id"])
+        all_links.extend(links)
+
+        # Mark email as read
+        service.users().messages().modify(
+            userId="me",
+            id=m["id"],
+            body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
+
+    # Remove duplicates
+    unique_links = list(dict.fromkeys(all_links))  # preserves order
+    return unique_links
+
+
+# -------------------------
+# 5️⃣ Summarize with OpenAI
+# -------------------------
+client = OpenAI()  # Make sure OPENAI_API_KEY is set in environment variables
+
+def summarize_jobs(job_text):
+    prompt = f"""
+You are filtering job postings from Google Alerts.
+
+Keep ONLY:
+- Computer science / software jobs
+- Located in Utah OR remote roles available in Utah
+
+Ignore:
+- Non-technical jobs
+- Career advice articles
+- Recruiter spam
+- Duplicates
+
+Output one bullet per job:
+- Job title
+- Company
+- Location
+- Link
+
+Input:
+{job_text}
+"""
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt
+    )
+    return response.output_text
+
+# -------------------------
+# 6️⃣ Send summary email
+# -------------------------
+def send_summary_email(service, summary):
+    message = MIMEText(summary)
+    message["to"] = "chancehardman71@gmail.com"  # <-- replace with your email
+    message["subject"] = "Daily Utah CS Job Digest"
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    service.users().messages().send(
+        userId="me",
+        body={"raw": raw}
+    ).execute()
+
+# -------------------------
+# 7️⃣ Main
+# -------------------------
+if __name__ == "__main__":
+    service = get_gmail_service()
+
+    links = collect_all_links(service)
+
+    if not links:
+        print("No new alerts today.")
+        exit()
+
+    combined_text = "\n".join(links)
+    summary = summarize_jobs(combined_text)
+
+    send_summary_email(service, summary)
+
+    print("Daily job digest sent!")
