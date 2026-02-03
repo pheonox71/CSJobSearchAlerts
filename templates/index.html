@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Job Digest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --surface-hover: #1f1f24;
+      --border: #2a2a32;
+      --text: #e8e8ed;
+      --text-muted: #8b8b96;
+      --accent: #00d4aa;
+      --accent-dim: #00a884;
+      --error: #ff6b6b;
+      --radius: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .fetch-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .btn {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 0.85rem 2rem;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-dim);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      min-height: 1.5em;
+    }
+
+    .status.error {
+      color: var(--error);
+    }
+
+    .status.success {
+      color: var(--accent);
+    }
+
+    .jobs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .job-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .job-card:hover {
+      border-color: var(--accent-dim);
+    }
+
+    .job-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .job-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+    }
+
+    .job-meta {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .job-links {
+      padding: 1rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .job-links a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-decoration: none;
+      padding: 0.35rem 0.65rem;
+      background: rgba(0, 212, 170, 0.1);
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .job-links a:hover {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .job-resume-actions {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-download {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .btn-download:hover {
+      background: rgba(0, 212, 170, 0.1);
+    }
+
+    .job-summary {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.95rem;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state p {
+      margin: 0 0 0.5rem;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CS Job Digest</h1>
+      <p class="subtitle">Fetch Utah CS jobs from Gmail alerts with tailored resumes</p>
+    </header>
+
+    <section class="fetch-section">
+      <button class="btn btn-primary" id="fetchBtn" onclick="fetchJobs()">
+        Fetch Jobs
+      </button>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="jobs-list" id="jobsList"></section>
+  </div>
+
+  <script>
+    let jobs = [];
+
+    function resumeFilename(job) {
+      const parts = [];
+      if (job.title) parts.push(job.title);
+      if (job.company) parts.push('at ' + job.company);
+      if (job.location) parts.push('— ' + job.location);
+      const base = (parts.join(' ') || 'resume').replace(/[<>:"/\\|?*]/g, '').trim() || 'resume';
+      return base + ' resume.pdf';
+    }
+
+    async function downloadResume(index) {
+      const job = jobs[index];
+      if (!job || !job.resume) return;
+      try {
+        const res = await fetch('/api/download-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            resume: job.resume
+          })
+        });
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = resumeFilename(job);
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert('Download failed: ' + err.message);
+      }
+    }
+
+    async function fetchJobs() {
+      const btn = document.getElementById('fetchBtn');
+      const status = document.getElementById('status');
+      const jobsList = document.getElementById('jobsList');
+
+      btn.disabled = true;
+      status.className = 'status';
+      status.innerHTML = '<span class="spinner"></span> Fetching from Gmail and generating tailored resumes...';
+      jobsList.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/fetch', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          jobs = data.jobs;
+          status.className = 'status success';
+          status.textContent = `Found ${data.jobs.length} job(s).`;
+
+          if (data.jobs.length === 0) {
+            jobsList.innerHTML = `
+              <div class="empty-state">
+                <p>No qualifying jobs in this batch.</p>
+                <p>Try again when you have new Google Alert emails.</p>
+              </div>
+            `;
+          } else {
+            jobsList.innerHTML = data.jobs.map((job, i) => `
+              <article class="job-card">
+                <div class="job-header">
+                  <h2 class="job-title">${escapeHtml(job.title)}</h2>
+                  <div class="job-meta">${escapeHtml(job.company)} — ${escapeHtml(job.location)}</div>
+                </div>
+                ${job.links.length ? `
+                  <div class="job-links">
+                    ${job.links.map(link => `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${truncateUrl(link)}</a>`).join('')}
+                  </div>
+                ` : ''}
+                ${job.summary ? `
+                  <div class="job-summary">${escapeHtml(job.summary).replace(/\n/g, '<br>')}</div>
+                ` : ''}
+                ${job.resume ? `
+                  <div class="job-resume-actions">
+                    <button class="btn btn-download" onclick="downloadResume(${i})">
+                      Download Resume PDF
+                    </button>
+                  </div>
+                ` : ''}
+              </article>
+            `).join('');
+          }
+        } else {
+          status.className = 'status error';
+          status.textContent = data.error || 'Something went wrong.';
+        }
+      } catch (err) {
+        status.className = 'status error';
+        status.textContent = 'Network error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function truncateUrl(url) {
+      try {
+        const u = new URL(url);
+        return u.hostname.replace('www.', '') + (u.pathname.length > 20 ? '…' : u.pathname);
+      } catch {
+        return url.length > 40 ? url.slice(0, 40) + '…' : url;
+      }
+    }
+  </script>
+</body>
+</html>

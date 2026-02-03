@@ -1,19 +1,19 @@
 # CS Job Search Alerts
 
-A Python tool that monitors your Gmail for Google Alert emails about job postings, filters them for relevance, groups duplicates across job boards, and emails you a digest with **tailored resume versions** for each job.
+A Python web app that monitors your Gmail for Google Alert emails about job postings, filters them for relevance, groups duplicates across job boards, and displays a digest with **tailored resume versions** for each job in a clean web UI.
 
 ## How It Works
 
 1. **Gmail + Google Alerts** — You use a Gmail account that receives [Google Alerts](https://www.google.com/alerts) for the job keywords you care about (e.g., "software engineer Utah", "developer remote Utah").
 
-2. **This program** — When you run it, it:
+2. **This program** — When you run it and click **Fetch Jobs** in the browser:
    - Reads unread emails from Gmail that are from `googlealerts-noreply@google.com`
    - Extracts job links from those emails and marks them as read
    - Filters for computer science/software jobs in Utah or remote roles available in Utah
    - Groups the same job when it appears on multiple sites (Indeed, LinkedIn, Glassdoor, etc.)
-   - Skips jobs you’ve already been sent (no repeat alerts)
+   - Skips jobs you’ve already seen (no repeat alerts)
    - Generates a tailored resume for each job using your master resume and OpenAI
-   - Emails you one digest with each job and its tailored resume
+   - Displays each job and its tailored resume in the web UI
 
 ## Prerequisites
 
@@ -42,13 +42,12 @@ A Python tool that monitors your Gmail for Google Alert emails about job posting
 ### 3. Install Dependencies
 
 ```bash
-pip install google-api-python-client google-auth-oauthlib google-auth beautifulsoup4 openai
+pip install -r requirements.txt
 ```
 
 ### 4. Configure
 
 - **`master_resume.txt`** — Add your full resume (contact, summary, experience, skills, education, projects). The program uses this to generate tailored versions per job.
-- **`config.json`** — Copy `config.example.json` to `config.json` and set `recipient_email` to the address where you want the digest sent.
 - **Environment** — Set your OpenAI API key:
   ```bash
   set OPENAI_API_KEY=your-key-here
@@ -60,18 +59,22 @@ pip install google-api-python-client google-auth-oauthlib google-auth beautifuls
 python main.py
 ```
 
-On first run, a browser window opens for Gmail OAuth. After that, tokens are stored in `token.json`.
+Then open **http://localhost:5000** in your browser and click **Fetch Jobs**.
 
-- If there are no new alert emails, it exits with no email sent.
-- If all jobs have already been sent, it skips the email.
-- Otherwise, it sends one digest email with each job and its tailored resume.
+On first fetch, a browser window opens for Gmail OAuth. After that, tokens are stored in `token.json`.
+
+- If there are no new alert emails, the UI shows a message.
+- If all jobs have already been seen, it skips processing.
+- Otherwise, each job and its tailored resume appear in the web UI.
 
 ## Project Structure
 
 | File | Purpose |
 |------|---------|
-| `main.py` | Main script: Gmail, filtering, resume tailoring, email |
-| `config.example.json` | Template for config; copy to `config.json` and add your recipient email |
+| `main.py` | Entry point; runs the Flask web server |
+| `app.py` | Flask app and API routes |
+| `job_processor.py` | Gmail, filtering, resume tailoring logic |
+| `templates/index.html` | Web UI |
 
 ## Files Hidden from Public View (Git-Ignored)
 
@@ -79,13 +82,12 @@ The following files are listed in `.gitignore` and are **not** committed to the 
 
 | File | Purpose | Setup |
 |------|---------|-------|
-| `master_resume.txt` | Your full resume; used to generate tailored versions per job | Create and add your resume content |
+| `master_resume.txt` | Your full resume; used to generate tailored versions | Create and add your resume content |
 | `credentials.json` | Gmail API OAuth client secrets (from Google Cloud) | Download from Cloud Console and save here |
-| `token.json` | Gmail OAuth tokens (created automatically on first run) | Created when you complete Gmail OAuth |
-| `config.json` | Recipient email for the job digest | Copy `config.example.json` to `config.json` and add your email |
-| `seen_jobs.json` | URLs of jobs already sent (avoids repeats) | Created automatically when jobs are sent |
+| `token.json` | Gmail OAuth tokens (created automatically on first fetch) | Created when you complete Gmail OAuth |
+| `seen_jobs.json` | URLs of jobs already seen (avoids repeats) | Created automatically when jobs are fetched |
 
 ## Customization
 
-- **Job filter** — Edit the prompt in `generate_digest_with_tailored_resumes()` to change location, job type, or criteria.
+- **Job filter** — Edit the prompt in `generate_digest_with_tailored_resumes()` in `job_processor.py` to change location, job type, or criteria.
 - **Resume tailoring** — Adjust your `master_resume.txt`; the model keeps the same structure but reorders and emphasizes content per job.
